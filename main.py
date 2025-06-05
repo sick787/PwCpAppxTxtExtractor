@@ -872,7 +872,7 @@ async def process_cpwp(bot: Client, m: Message, user_id: int):
                                     await editable.edit("**Timeout! You took too long to respond**")
                                     return
                                 except Exception as e:
-                                    logging.exception("Error during input1 listeni    
+                                    logging.exception("Error during input1 listening:")   
                                     try:
                                         await editable.edit(f"**Error : {e}**")
                                     except:
