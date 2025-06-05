@@ -873,3 +873,140 @@ async def process_cpwp(bot: Client, m: Message, user_id: int):
                                     return
                                 except Exception as e:
                                     logging.exception("Error during input1 listeni    
+                                    try:
+                                        await editable.edit(f"**Error : {e}**")
+                                    except:
+                                        logging.error(f"Failed to send error message to user : {e}")
+                                    return
+
+                                if input2.text.isdigit() and len(input2.text) <= len(courses):
+                                    selected_course_index = int(input2.text.strip())
+                                    course = courses[selected_course_index - 1]
+                                    selected_batch_id = course['id']
+                                    selected_batch_name = course['name']
+                                    price = course['finalPrice']
+                                    clean_batch_name = selected_batch_name.replace("/", "-").replace("|", "-")
+                                    clean_file_name = f"{user_id}_{clean_batch_name}"
+
+                                else:
+                                    search_url = f"https://api.classplusapp.com/v2/course/preview/similar/{token}?search={raw_text2}"
+                                    async with session.get(search_url, headers=headers) as response:
+                                        if response.status == 200:
+                                            res_json = await response.json()
+                                            courses = res_json.get("data", {}).get("coursesData", [])
+
+                                            if courses:
+                                                text = ''
+                                                for cnt, course in enumerate(courses):
+                                                    name = course['name']
+                                                    price = course['finalPrice']
+                                                    text += f'{cnt + 1}. ```\n{name} 💵₹{price}```\n'
+                                                await editable.edit(f"**Send index number of the Batch to download.\n\n{text}**")
+                                            
+                                                try:
+                                                    input3 = await bot.listen(chat_id=m.chat.id, filters=filters.user(user_id), timeout=120)
+                                                    raw_text3 = input3.text
+                                                    await input3.delete(True)
+                                                except ListenerTimeout:
+                                                    await editable.edit("**Timeout! You took too long to respond**")
+                                                    return
+                                                except Exception as e:
+                                                    logging.exception("Error during input1 listening:")
+                                                    try:
+                                                        await editable.edit(f"**Error : {e}**")
+                                                    except:
+                                                        logging.error(f"Failed to send error message to user : {e}")
+                                                    return
+
+
+                                                if input3.text.isdigit() and len(input3.text) <= len(courses):
+                                                    selected_course_index = int(input3.text.strip())
+                                                    course = courses[selected_course_index - 1]
+                                                    selected_batch_id = course['id']
+                                                    selected_batch_name = course['name']
+                                                    price = course['finalPrice']
+                                                    clean_batch_name = selected_batch_name.replace("/", "-").replace("|", "-")
+                                                    clean_file_name = f"{user_id}_{clean_batch_name}"
+                                                
+                                                else:
+                                                    raise Exception("Wrong Index Number")
+                                            else:
+                                                raise Exception("Didn't Find Any Course Matching The Search Term")
+                                        else:
+                                            raise Exception(f"{response.text}")
+                                            
+                                download_price = int(price * 0.10)
+                                batch_headers = {
+                                    'Accept': 'application/json, text/plain, */*',
+                                    'region': 'IN',
+                                    'accept-language': 'EN',
+                                    'Api-Version': '22',
+                                    'tutorWebsiteDomain': f'https://{org_code}.courses.store'
+                                }
+                                    
+                                params = {
+                                    'courseId': f'{selected_batch_id}',
+                                }
+
+                                async with session.get(f"https://api.classplusapp.com/v2/course/preview/org/info", params=params, headers=batch_headers) as response:
+                                    if response.status == 200:
+                                        res_json = await response.json()
+                                        Batch_Token = res_json['data']['hash']
+                                        App_Name = res_json['data']['name']
+
+                                        await editable.edit(f"**Extracting course : {selected_batch_name} ...**")
+
+                                        start_time = time.time()
+                                        course_content, video_count, pdf_count, image_count = await get_cpwp_course_content(session, headers, Batch_Token)
+                                    
+                                        if course_content:
+                                            file = f"{clean_file_name}.txt"
+
+                                            with open(file, 'w') as f:
+                                                f.write(''.join(course_content))
+
+                                            end_time = time.time()
+                                            response_time = end_time - start_time
+                                            minutes = int(response_time // 60)
+                                            seconds = int(response_time % 60)
+
+                                            if minutes == 0:
+                                                if seconds < 1:
+                                                    formatted_time = f"{response_time:.2f} seconds"
+                                                else:
+                                                    formatted_time = f"{seconds} seconds"
+                                            else:
+                                                formatted_time = f"{minutes} minutes {seconds} seconds"
+
+                                            await editable.delete(True)
+                                        
+                                            caption = f"**App Name : ```\n{App_Name}({org_code})```\nBatch Name : ```\n{selected_batch_name}``````\n🎬 : {video_count} | 📁 : {pdf_count} | 🖼  : {image_count}``````\nTime Taken : {formatted_time}```**"
+                                        
+                                            with open(file, 'rb') as f:
+                                                doc = await m.reply_document(document=f, caption=caption, file_name=f"{clean_batch_name}.txt")
+
+                                            os.remove(file)
+
+                                        else:
+                                            raise Exception("Didn't Find Any Content In The Course")
+                                    else:
+                                        raise Exception(f"{response.text}")
+                            else:
+                                raise Exception("Didn't Find Any Course")
+                        else:
+                            raise Exception(f"{response.text}")
+                else:
+                    raise Exception('No App Found In Org Code')
+                    
+        except Exception as e:
+            await editable.edit(f"**Error : {e}**")
+            
+        finally:
+            await session.close()
+            await CONNECTOR.close()
+
+ # Start Flask + Bot
+if __name__ == "__main__":
+    threading.Thread(target=run_flask).start()
+    bot.run()                      
+#bot.run()
